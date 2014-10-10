@@ -1,0 +1,26 @@
+<package>
+ <name>s8_motor_controller</name>
+  <version>0.0.0</version>
+  <description>
+    Motor controller
+  </description>
+  <license>BSD</license>
+
+  <url type="website">http://wiki.ros.org/ras_lab1_motors</url>
+
+  <author email="lwiener@kth.se">Lucas</author>
+  <author email="lucadv@kth.se">Luca</author>
+  <maintainer email="lwiener@kth.se">Lucas</maintainer>
+  <maintainer email="lucadv@kth.se">Luca</maintainer>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>roscpp</build_depend>
+  <build_depend>ras_arduino_msgs</build_depend>
+  <build_depend>geometry_msgs</build_depend>
+
+  <run_depend>roscpp</run_depend>
+  <run_depend>ras_arduino_msgs</run_depend>
+  <run_depend>geometry_msgs</run_depend>
+
+</package>
