@@ -27,7 +27,7 @@
 #define PARAM_DEFAULT_ROBOT_BASE        0.225
 #define PARAM_DEFAULT_TICKS_PER_REV     360
 #define PARAM_DEFAULT_PWM_LIMIT_HIGH    255
-#define PARAM_DEFAULT_PWM_LIMIT_LOW     -255  
+#define PARAM_DEFAULT_PWM_LIMIT_LOW     -255
 
 class MotorController {
 private:
@@ -65,7 +65,7 @@ private:
 public:
     MotorController(int hz) : hz(hz), v(0), w(0) {
         n = ros::NodeHandle("~");
-        set_default_params();
+        init_params();
         print_params();
         pwm_publisher = n.advertise<ras_arduino_msgs::PWM>(TOPIC_PWM, BUFFER_SIZE);
         twist_subscriber = n.subscribe<geometry_msgs::Twist>(TOPIC_TWIST, BUFFER_SIZE, &MotorController::twist_callback, this);
@@ -73,13 +73,9 @@ public:
     }
 
     void update() {
-        update_params();
-
         double left_w;
         double right_w;
         mps_to_rps(v, w, left_w, right_w);
-
-        ROS_INFO("v: %lf w: %lf left_w: %lf right_w: %lf", v, w, left_w, right_w);
 
         p_controller(&wheel_left.pwm, wheel_left.alpha, left_w, wheel_left.delta_encoder);
         p_controller(&wheel_right.pwm, wheel_right.alpha, right_w, wheel_right.delta_encoder);
@@ -91,7 +87,6 @@ private:
     void twist_callback(const geometry_msgs::Twist::ConstPtr & twist) {
         v = twist->linear.x;
         w = twist->angular.z;
-        ROS_INFO("v: %lf w: %lf", v, w);
     }
 
     void encoders_callback(const ras_arduino_msgs::Encoders::ConstPtr & encoders) {
@@ -128,35 +123,26 @@ private:
         ROS_INFO("left: %d right: %d", left, right);
     }
 
-    void set_default_params() {
-        set_default_param(PARAM_NAME_LEFT_ALPHA, wheel_left.alpha, PARAM_DEFAULT_LEFT_ALPHA);
-        set_default_param(PARAM_NAME_RIGHT_ALPHA, wheel_right.alpha, PARAM_DEFAULT_RIGHT_ALPHA);
-        set_default_param(PARAM_NAME_ROBOT_BASE, params.robot_base, PARAM_DEFAULT_ROBOT_BASE);
-        set_default_param(PARAM_NAME_WHEEL_RADIUS, params.wheel_radius, PARAM_DEFAULT_WHEEL_RADIUS);
-        set_default_param(PARAM_NAME_TICKS_PER_REV, params.ticks_per_rev, PARAM_DEFAULT_TICKS_PER_REV);
-        set_default_param(PARAM_NAME_PWM_LIMIT_HIGH, params.pwm_limit_high, PARAM_DEFAULT_PWM_LIMIT_HIGH);
-        set_default_param(PARAM_NAME_PWM_LIMIT_LOW, params.pwm_limit_low, PARAM_DEFAULT_PWM_LIMIT_LOW);
+    void init_params() {
+        init_param(PARAM_NAME_LEFT_ALPHA, wheel_left.alpha, PARAM_DEFAULT_LEFT_ALPHA);
+        init_param(PARAM_NAME_RIGHT_ALPHA, wheel_right.alpha, PARAM_DEFAULT_RIGHT_ALPHA);
+        init_param(PARAM_NAME_ROBOT_BASE, params.robot_base, PARAM_DEFAULT_ROBOT_BASE);
+        init_param(PARAM_NAME_WHEEL_RADIUS, params.wheel_radius, PARAM_DEFAULT_WHEEL_RADIUS);
+        init_param(PARAM_NAME_TICKS_PER_REV, params.ticks_per_rev, PARAM_DEFAULT_TICKS_PER_REV);
+        init_param(PARAM_NAME_PWM_LIMIT_HIGH, params.pwm_limit_high, PARAM_DEFAULT_PWM_LIMIT_HIGH);
+        init_param(PARAM_NAME_PWM_LIMIT_LOW, params.pwm_limit_low, PARAM_DEFAULT_PWM_LIMIT_LOW);
     }
 
     template<class T>
-    void set_default_param(const std::string & name, T & destination, T default_value) {
+    void init_param(const std::string & name, T & destination, T default_value) {
         if(!n.hasParam(name)) {
-                n.setParam(name, default_value);
-            }
+            n.setParam(name, default_value);
+        }
 
         if(!n.getParam(name, destination)) {
             ROS_WARN("Failed to get parameter %s from param server. Falling back to default value.", name.c_str());
+            destination = default_value;
         }
-    }
-
-    void update_params() {
-        n.getParam(PARAM_NAME_LEFT_ALPHA, wheel_left.alpha);
-        n.getParam(PARAM_NAME_RIGHT_ALPHA, wheel_right.alpha);
-        n.getParam(PARAM_NAME_ROBOT_BASE, params.robot_base);
-        n.getParam(PARAM_NAME_WHEEL_RADIUS, params.wheel_radius);
-        n.getParam(PARAM_NAME_TICKS_PER_REV, params.ticks_per_rev);
-        n.getParam(PARAM_NAME_PWM_LIMIT_HIGH, params.pwm_limit_high);
-        n.getParam(PARAM_NAME_PWM_LIMIT_LOW, params.pwm_limit_low);
     }
 
     void print_params() {
