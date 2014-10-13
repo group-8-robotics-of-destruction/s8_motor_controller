@@ -77,7 +77,7 @@ public:
 
         double left_w;
         double right_w;
-        mps_to_rps(v, w, &left_w, &right_w);
+        mps_to_rps(v, w, left_w, right_w);
 
         ROS_INFO("v: %lf w: %lf left_w: %lf right_w: %lf", v, w, left_w, right_w);
 
@@ -99,9 +99,9 @@ private:
         wheel_right.delta_encoder = encoders->delta_encoder1;
     }
 
-    void mps_to_rps(double v, double w, double *left_w, double *right_w) {
-        *left_w = (v - (params.robot_base / 2) * w) / params.wheel_radius;
-        *right_w = (v + (params.robot_base / 2) * w) / params.wheel_radius;
+    void mps_to_rps(double v, double w, double & left_w, double & right_w) {
+        left_w = (v - (params.robot_base / 2) * w) / params.wheel_radius;
+        right_w = (v + (params.robot_base / 2) * w) / params.wheel_radius;
     }
 
     double estimate_w(double encoder_delta) {
