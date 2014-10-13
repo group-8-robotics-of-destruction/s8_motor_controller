@@ -124,11 +124,11 @@ int main(int argc, char **argv) {
 	MotorController motor_controller(DEFAULT_WHEEL_RADIUS, DEFAULT_ROBOT_BASE, DEFAULT_TICKS_PER_REV);
 	ros::Rate loop_rate(HZ);
 
-	while(ros::ok) {
-		motor_controller.update();
-		ros::spinOnce();
-		loop_rate.sleep();
-	}
+    while(ros::ok()) {
+        motor_controller.update();
+        ros::spinOnce();
+        loop_rate.sleep();
+    }
 
 	return 0;
 }
