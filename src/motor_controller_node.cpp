@@ -5,124 +5,178 @@
 #include <geometry_msgs/Twist.h>
 #include <ras_arduino_msgs/Encoders.h>
 
-#define DEFAULT_WHEEL_RADIUS	0.05
-#define DEFAULT_ROBOT_BASE		0.225
-#define DEFAULT_TICKS_PER_REV	360
+#define HZ                              10
+#define BUFFER_SIZE                     1000
 
-#define HZ 10
-#define BUFFER_SIZE 1000
+#define NODE_NAME                       "s8_motor_controller"
+#define TOPIC_PWM                       "/arduino/pwm"
+#define TOPIC_ENCODERS                  "/arduino/encoders"
+#define TOPIC_TWIST                     "/s8/twist"
+
+#define PARAM_NAME_LEFT_ALPHA           "alpha_left"
+#define PARAM_NAME_RIGHT_ALPHA          "alpha_right"
+#define PARAM_NAME_WHEEL_RADIUS         "wheel_radius"
+#define PARAM_NAME_ROBOT_BASE           "robot_base"
+#define PARAM_NAME_TICKS_PER_REV        "ticks_per_rev"
+#define PARAM_NAME_PWM_LIMIT_HIGH       "pwm_limit_high"
+#define PARAM_NAME_PWM_LIMIT_LOW        "pwm_limit_low"
+
+#define PARAM_DEFAULT_LEFT_ALPHA        1.0
+#define PARAM_DEFAULT_RIGHT_ALPHA       1.0
+#define PARAM_DEFAULT_WHEEL_RADIUS      0.05
+#define PARAM_DEFAULT_ROBOT_BASE        0.225
+#define PARAM_DEFAULT_TICKS_PER_REV     360
+#define PARAM_DEFAULT_PWM_LIMIT_HIGH    255
+#define PARAM_DEFAULT_PWM_LIMIT_LOW     -255  
 
 class MotorController {
 private:
-	struct params {
-		double alpha;
-		double i;
-		double d;
-	};
+    struct wheel {
+        int delta_encoder;
+        int pwm;
+        double alpha;
 
-	ros::NodeHandle n;
+        wheel() : delta_encoder(0), pwm(0), alpha(0.0) {}
+    };
 
-	params params_left;
-	params params_right;
-	double v;
-	double w;
-	double radius;
-	double base;
-	int ticks_per_rev;
+    struct params_struct {
+        double wheel_radius;
+        double robot_base;
+        int ticks_per_rev;
+        int pwm_limit_high;
+        int pwm_limit_low;
 
-	int left_encoder_delta;
-	int right_encoder_delta;
-	int left_pwm;
-	int right_pwm;
+        params_struct() : wheel_radius(0.0), robot_base(0.0), ticks_per_rev(0), pwm_limit_high(0), pwm_limit_low(0) {}
+    };
 
-	ros::Publisher pwm_publisher;
-	ros::Subscriber twist_subscriber;
-	ros::Subscriber encoders_subscriber;
-	
+    const int hz;
+
+    ros::NodeHandle n;
+    ros::Publisher pwm_publisher;
+    ros::Subscriber twist_subscriber;
+    ros::Subscriber encoders_subscriber;
+
+    params_struct params;
+    wheel wheel_left;
+    wheel wheel_right;
+    double v;
+    double w;
+    
 public:
-	MotorController(double radius_default, double base_default, int ticks_per_rev_default) : v(0), w(0), left_encoder_delta(0), right_encoder_delta(0), left_pwm(0), right_pwm(0) {
-		n = ros::NodeHandle("~");
-		n.param("/radius", radius, radius_default);
-		n.param("/base", base, base_default);
-		n.param("/ticks_per_rev", ticks_per_rev, ticks_per_rev_default);
+    MotorController(int hz) : hz(hz), v(0), w(0) {
+        n = ros::NodeHandle("~");
+        set_default_params();
+        print_params();
+        pwm_publisher = n.advertise<ras_arduino_msgs::PWM>(TOPIC_PWM, BUFFER_SIZE);
+        twist_subscriber = n.subscribe<geometry_msgs::Twist>(TOPIC_TWIST, BUFFER_SIZE, &MotorController::twist_callback, this);
+        encoders_subscriber = n.subscribe<ras_arduino_msgs::Encoders>(TOPIC_ENCODERS, BUFFER_SIZE, &MotorController::encoders_callback, this);
+    }
 
-		pwm_publisher = n.advertise<ras_arduino_msgs::PWM>("/arduino/pwm", BUFFER_SIZE);
-		twist_subscriber = n.subscribe<geometry_msgs::Twist>("/s8/twist", BUFFER_SIZE, &MotorController::twist_callback, this);
-		encoders_subscriber = n.subscribe<ras_arduino_msgs::Encoders>("/arduino/encoders", BUFFER_SIZE, &MotorController::encoders_callback, this);
-	}
+    void update() {
+        update_params();
 
-	void update() {
-		updateParams();
+        double left_w;
+        double right_w;
+        mps_to_rps(v, w, &left_w, &right_w);
 
-		double left_w;
-		double right_w;
-		mps_to_rps(v, w, &left_w, &right_w);
+        ROS_INFO("v: %lf w: %lf left_w: %lf right_w: %lf", v, w, left_w, right_w);
 
-		p_controller(&left_pwm, params_left.alpha, left_w, left_encoder_delta);
-		p_controller(&right_pwm, params_right.alpha, right_w, right_encoder_delta);
+        p_controller(&wheel_left.pwm, wheel_left.alpha, left_w, wheel_left.delta_encoder);
+        p_controller(&wheel_right.pwm, wheel_right.alpha, right_w, wheel_right.delta_encoder);
 
-		publish_pwm(left_pwm, right_pwm);
-	}
+        publish_pwm(wheel_left.pwm, wheel_right.pwm);
+    }
 
 private:
-	void updateParams() {
-		n.getParam("/left_alpha", params_left.alpha);
-		n.getParam("/left_i", params_left.i);
-		n.getParam("/left_d", params_left.d);
+    void twist_callback(const geometry_msgs::Twist::ConstPtr & twist) {
+        v = twist->linear.x;
+        w = twist->angular.z;
+        ROS_INFO("v: %lf w: %lf", v, w);
+    }
 
-		n.getParam("/right_alpha", params_right.alpha);
-		n.getParam("/right_i", params_right.i);
-		n.getParam("/right_d", params_right.d);
+    void encoders_callback(const ras_arduino_msgs::Encoders::ConstPtr & encoders) {
+        wheel_left.delta_encoder = encoders->delta_encoder2;
+        wheel_right.delta_encoder = encoders->delta_encoder1;
+    }
 
-		n.getParam("/base", base);
-		n.getParam("/radius", radius);
-	}
+    void mps_to_rps(double v, double w, double *left_w, double *right_w) {
+        *left_w = (v - (params.robot_base / 2) * w) / params.wheel_radius;
+        *right_w = (v + (params.robot_base / 2) * w) / params.wheel_radius;
+    }
 
-	void twist_callback(const geometry_msgs::Twist::ConstPtr & twist) {
-		v = twist->linear.x;
-		w = twist->angular.z;
-	}
+    double estimate_w(double encoder_delta) {
+        return (encoder_delta * 2 * M_PI * hz) / params.ticks_per_rev;
+    }
 
-	void encoders_callback(const ras_arduino_msgs::Encoders::ConstPtr & encoders) {
-		left_encoder_delta = encoders->delta_encoder2;
-		right_encoder_delta = encoders->delta_encoder1;
-	}
+    void p_controller(int * pwm, double alpha, double w, double encoder_delta) {
+        *pwm += alpha * (w - estimate_w(encoder_delta));
 
-	void mps_to_rps(double v, double w, double *left_w, double *right_w) {
-		*left_w = (v - (base / 2) * w) / radius;
-		*right_w = (v + (base / 2) * w) / radius;
-	}
+        if(*pwm > params.pwm_limit_high) {
+            *pwm = params.pwm_limit_high;
+        } else if(*pwm < params.pwm_limit_low) {
+            *pwm = params.pwm_limit_low;
+        }
+    }
 
-	double estimate_w(double encoder_delta) {
-		return (encoder_delta * 2 * M_PI * HZ) / ticks_per_rev;
-	}
+    void publish_pwm(int left, int right) {
+        ras_arduino_msgs::PWM pwm_message;
+        pwm_message.PWM1 = right;
+        pwm_message.PWM2 = left;
 
-	void p_controller(int * pwm, double alpha, double w, double encoder_delta) {
-		*pwm += alpha * (w - estimate_w(encoder_delta));
+        pwm_publisher.publish(pwm_message);
 
-		if(*pwm > 255) {
-			*pwm = 255;
-		} else if(*pwm < -255) {
-			*pwm = -255;
-		}
-	}
+        ROS_INFO("left: %d right: %d", left, right);
+    }
 
-	void publish_pwm(int left, int right) {
-		ras_arduino_msgs::PWM pwm_message;
-		pwm_message.PWM1 = right;
-		pwm_message.PWM2 = left;
+    void set_default_params() {
+        set_default_param(PARAM_NAME_LEFT_ALPHA, wheel_left.alpha, PARAM_DEFAULT_LEFT_ALPHA);
+        set_default_param(PARAM_NAME_RIGHT_ALPHA, wheel_right.alpha, PARAM_DEFAULT_RIGHT_ALPHA);
+        set_default_param(PARAM_NAME_ROBOT_BASE, params.robot_base, PARAM_DEFAULT_ROBOT_BASE);
+        set_default_param(PARAM_NAME_WHEEL_RADIUS, params.wheel_radius, PARAM_DEFAULT_WHEEL_RADIUS);
+        set_default_param(PARAM_NAME_TICKS_PER_REV, params.ticks_per_rev, PARAM_DEFAULT_TICKS_PER_REV);
+        set_default_param(PARAM_NAME_PWM_LIMIT_HIGH, params.pwm_limit_high, PARAM_DEFAULT_PWM_LIMIT_HIGH);
+        set_default_param(PARAM_NAME_PWM_LIMIT_LOW, params.pwm_limit_low, PARAM_DEFAULT_PWM_LIMIT_LOW);
+    }
 
-		pwm_publisher.publish(pwm_message);
+    template<class T>
+    void set_default_param(const std::string & name, T & destination, T default_value) {
+        if(!n.hasParam(name)) {
+                n.setParam(name, default_value);
+            }
 
-		ROS_INFO("left: %d right: %d", left, right);
-	}
+        if(!n.getParam(name, destination)) {
+            ROS_WARN("Failed to get parameter %s from param server. Falling back to default value.", name.c_str());
+        }
+    }
+
+    void update_params() {
+        n.getParam(PARAM_NAME_LEFT_ALPHA, wheel_left.alpha);
+        n.getParam(PARAM_NAME_RIGHT_ALPHA, wheel_right.alpha);
+        n.getParam(PARAM_NAME_ROBOT_BASE, params.robot_base);
+        n.getParam(PARAM_NAME_WHEEL_RADIUS, params.wheel_radius);
+        n.getParam(PARAM_NAME_TICKS_PER_REV, params.ticks_per_rev);
+        n.getParam(PARAM_NAME_PWM_LIMIT_HIGH, params.pwm_limit_high);
+        n.getParam(PARAM_NAME_PWM_LIMIT_LOW, params.pwm_limit_low);
+    }
+
+    void print_params() {
+        ROS_INFO("--Params--");
+        ROS_INFO("%s: \t\t\t%lf", PARAM_NAME_LEFT_ALPHA, wheel_left.alpha);
+        ROS_INFO("%s: \t\t\t%lf", PARAM_NAME_RIGHT_ALPHA, wheel_right.alpha);
+        ROS_INFO("%s: \t\t\t%lf", PARAM_NAME_ROBOT_BASE, params.robot_base);
+        ROS_INFO("%s: \t\t\t%lf", PARAM_NAME_WHEEL_RADIUS, params.wheel_radius);
+        ROS_INFO("%s: \t\t\t%d", PARAM_NAME_TICKS_PER_REV, params.ticks_per_rev);
+        ROS_INFO("%s: \t\t%d", PARAM_NAME_PWM_LIMIT_HIGH, params.pwm_limit_high);
+        ROS_INFO("%s: \t\t\t%d", PARAM_NAME_PWM_LIMIT_LOW, params.pwm_limit_low);
+        ROS_INFO("");
+    }
 };
 
 int main(int argc, char **argv) {
-	ros::init(argc, argv, "s8_motor_controller");
+    ros::init(argc, argv, NODE_NAME);
 
-	MotorController motor_controller(DEFAULT_WHEEL_RADIUS, DEFAULT_ROBOT_BASE, DEFAULT_TICKS_PER_REV);
-	ros::Rate loop_rate(HZ);
+    MotorController motor_controller(HZ);
+    ros::Rate loop_rate(HZ);
 
     while(ros::ok()) {
         motor_controller.update();
@@ -130,5 +184,5 @@ int main(int argc, char **argv) {
         loop_rate.sleep();
     }
 
-	return 0;
+    return 0;
 }
