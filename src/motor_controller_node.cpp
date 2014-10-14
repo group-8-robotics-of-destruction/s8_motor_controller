@@ -126,26 +126,19 @@ private:
         return (encoder_delta * 2 * M_PI * hz) / params.ticks_per_rev;
     }
 
-    void p_controller(int * pwm, double alpha, double w, double encoder_delta) {
-        *pwm += alpha * (w - estimate_w(encoder_delta));
-
-        // Move this part to the top since it's common to the three P-I-D components?
-        // Possibly estimate_w only once and not three times per cycle
-
+    void p_controller(int * pwm, double alpha, double w, double est_w) {
+        *pwm += alpha * (w - est_w);
     }
 
-    void i_controller(int * pwm, double ki, double w, double encoder_delta, double * sum_i){
+    void i_controller(int * pwm, double ki, double w, double est_w, double * sum_i){
         // check type of 1/Hz
-        * sum_i += (w- estimate_w(encoder_delta)) * (1/HZ);
+        * sum_i += (w- est_w) * (1/HZ);
         * pwm += ki * *sum_i;
-
     }
 
-    void d_controller(int * pwm, double kp, double w, double encoder_delta, double * prev_err){
-        * pwm += kp * (w-estimate_w(encoder_delta) - *prev_err) * HZ;
-        //* prev_err = w-estimate_w(encoder_delta)
-
-
+    void d_controller(int * pwm, double kp, double w, double est_w, double * prev_err){
+        * pwm += kp * ((w-est_w) - *prev_err) * HZ;
+        * prev_err = w-est_w;
     }
 
     void check_pwm(int *left_pwm, int *right_pwm){
