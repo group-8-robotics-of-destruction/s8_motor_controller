@@ -132,7 +132,7 @@ private:
 
     void i_controller(int * pwm, double ki, double w, double est_w, double * sum_i){
         // check type of 1/Hz
-        * sum_i += (w- est_w) * (1/HZ);
+        * sum_i += (w- est_w) * (1.0/HZ);
         * pwm += ki * *sum_i;
     }
 
