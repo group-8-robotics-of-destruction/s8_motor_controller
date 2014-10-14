@@ -15,6 +15,10 @@
 
 #define PARAM_NAME_LEFT_ALPHA           "alpha_left"
 #define PARAM_NAME_RIGHT_ALPHA          "alpha_right"
+#define PARAM_NAME_LEFT_KI              "ki_left"
+#define PARAM_NAME_RIGHT_KI             "ki_right"
+#define PARAM_NAME_LEFT_KP              "kp_left"
+#define PARAM_NAME_RIGHT_KP             "kp_right"
 #define PARAM_NAME_WHEEL_RADIUS         "wheel_radius"
 #define PARAM_NAME_ROBOT_BASE           "robot_base"
 #define PARAM_NAME_TICKS_PER_REV        "ticks_per_rev"
