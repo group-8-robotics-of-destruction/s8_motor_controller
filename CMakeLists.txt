@@ -3,11 +3,11 @@ set(CMAKE_CXX_FLAGS "-std=c++0x ${CMAKE_CXX_FLAGS}")
 cmake_minimum_required(VERSION 2.8.3)
 project(s8_motor_controller)
 
-find_package(catkin REQUIRED COMPONENTS roscpp ras_arduino_msgs geometry_msgs)
+find_package(catkin REQUIRED COMPONENTS roscpp ras_arduino_msgs geometry_msgs s8_common_node)
 
 catkin_package(
   DEPENDS
-  CATKIN_DEPENDS roscpp ras_arduino_msgs geometry_msgs
+  CATKIN_DEPENDS roscpp ras_arduino_msgs geometry_msgs s8_common_node
 )
 
 include_directories(
