@@ -25,8 +25,13 @@
 #define PARAM_NAME_PWM_LIMIT_HIGH       "pwm_limit_high"
 #define PARAM_NAME_PWM_LIMIT_LOW        "pwm_limit_low"
 
+// NB might have to increase KP and decrease KI
 #define PARAM_DEFAULT_LEFT_ALPHA        1.0
-#define PARAM_DEFAULT_RIGHT_ALPHA       1.0
+#define PARAM_DEFAULT_RIGHT_ALPHA       -1.0
+#define PARAM_DEFAULT_LEFT_KI           2.0
+#define PARAM_DEFAULT_RIGHT_KI          -2.0
+#define PARAM_DEFAULT_LEFT_KP           0.2
+#define PARAM_DEFAULT_RIGHT_KP          -0.2
 #define PARAM_DEFAULT_WHEEL_RADIUS      0.05
 #define PARAM_DEFAULT_ROBOT_BASE        0.225
 #define PARAM_DEFAULT_TICKS_PER_REV     360
@@ -39,8 +44,10 @@ private:
         int delta_encoder;
         int pwm;
         double alpha;
+        double ki;
+        double kp;
 
-        wheel() : delta_encoder(0), pwm(0), alpha(0.0) {}
+        wheel() : delta_encoder(0), pwm(0), alpha(0.0), ki(0.0), kp(0.0) {}
     };
 
     struct params_struct {
@@ -79,10 +86,22 @@ public:
     void update() {
         double left_w;
         double right_w;
+        double est_left_w, est_right_w;
+        double I_left = 0, I_right = 0;
+        double p_err_left = 0, p_err_right = 0;
+
+        est_left_w = estimate_w(wheel_left.delta_encoder);
+        est_right_w = estimate_w(wheel_right.delta_encoder);
         mps_to_rps(v, w, left_w, right_w);
 
-        p_controller(&wheel_left.pwm, wheel_left.alpha, left_w, wheel_left.delta_encoder);
-        p_controller(&wheel_right.pwm, wheel_right.alpha, right_w, wheel_right.delta_encoder);
+        p_controller(&wheel_left.pwm, wheel_left.alpha, left_w, est_left_w);
+        p_controller(&wheel_right.pwm, wheel_right.alpha, right_w, est_right_w);
+        i_controller(&wheel_left.pwm, wheel_left.ki, left_w, est_left_w, &I_left);
+        i_controller(&wheel_right.pwm, wheel_right.ki, right_w, est_right_w, &I_right);
+        d_controller(&wheel_left.pwm, wheel_left.kp, left_w, est_left_w, &p_err_left);
+        d_controller(&wheel_right.pwm, wheel_right.kp, right_w, est_right_w, &p_err_right);
+
+        check_pwm(&wheel_left.pwm, &wheel_right.pwm);
 
         publish_pwm(wheel_left.pwm, wheel_right.pwm);
     }
@@ -110,10 +129,39 @@ private:
     void p_controller(int * pwm, double alpha, double w, double encoder_delta) {
         *pwm += alpha * (w - estimate_w(encoder_delta));
 
-        if(*pwm > params.pwm_limit_high) {
-            *pwm = params.pwm_limit_high;
-        } else if(*pwm < params.pwm_limit_low) {
-            *pwm = params.pwm_limit_low;
+        // Move this part to the top since it's common to the three P-I-D components?
+        // Possibly estimate_w only once and not three times per cycle
+
+    }
+
+    void i_controller(int * pwm, double ki, double w, double encoder_delta, double * sum_i){
+        // check type of 1/Hz
+        * sum_i += (w- estimate_w(encoder_delta)) * (1/HZ);
+        * pwm += ki * *sum_i;
+
+    }
+
+    void d_controller(int * pwm, double kp, double w, double encoder_delta, double * prev_err){
+        * pwm += kp * (w-estimate_w(encoder_delta) - *prev_err) * HZ;
+        //* prev_err = w-estimate_w(encoder_delta)
+
+
+    }
+
+    void check_pwm(int *left_pwm, int *right_pwm){
+        if(*right_pwm > params.pwm_limit_high) {
+            ROS_WARN("Right PWM reached positive saturation");
+            *right_pwm = params.pwm_limit_high;
+        } else if(*right_pwm < params.pwm_limit_low) {
+            ROS_WARN("Right PWM reached negative saturation");
+            *right_pwm = params.pwm_limit_low;
+        }
+        if(*left_pwm > params.pwm_limit_high) {
+            ROS_WARN("Right PWM reached positive saturation");
+            *left_pwm = params.pwm_limit_high;
+        } else if(*left_pwm < params.pwm_limit_low) {
+            ROS_WARN("Right PWM reached negative saturation");
+            *left_pwm = params.pwm_limit_low;
         }
     }
 
@@ -135,6 +183,11 @@ private:
         init_param(PARAM_NAME_TICKS_PER_REV, params.ticks_per_rev, PARAM_DEFAULT_TICKS_PER_REV);
         init_param(PARAM_NAME_PWM_LIMIT_HIGH, params.pwm_limit_high, PARAM_DEFAULT_PWM_LIMIT_HIGH);
         init_param(PARAM_NAME_PWM_LIMIT_LOW, params.pwm_limit_low, PARAM_DEFAULT_PWM_LIMIT_LOW);
+        init_param(PARAM_NAME_LEFT_KI, wheel_left.ki, PARAM_DEFAULT_LEFT_KI);
+        init_param(PARAM_NAME_RIGHT_KI, wheel_right.ki, PARAM_DEFAULT_RIGHT_KI);
+        init_param(PARAM_NAME_LEFT_KP, wheel_left.kp, PARAM_DEFAULT_LEFT_KP);
+        init_param(PARAM_NAME_RIGHT_KI, wheel_right.kp, PARAM_DEFAULT_RIGHT_KP);
+
     }
 
     template<class T>
