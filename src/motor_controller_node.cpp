@@ -186,7 +186,7 @@ private:
         init_param(PARAM_NAME_LEFT_KI, wheel_left.ki, PARAM_DEFAULT_LEFT_KI);
         init_param(PARAM_NAME_RIGHT_KI, wheel_right.ki, PARAM_DEFAULT_RIGHT_KI);
         init_param(PARAM_NAME_LEFT_KP, wheel_left.kp, PARAM_DEFAULT_LEFT_KP);
-        init_param(PARAM_NAME_RIGHT_KI, wheel_right.kp, PARAM_DEFAULT_RIGHT_KP);
+        init_param(PARAM_NAME_RIGHT_KP, wheel_right.kp, PARAM_DEFAULT_RIGHT_KP);
 
     }
 
