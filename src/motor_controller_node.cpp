@@ -13,12 +13,12 @@
 #define TOPIC_ENCODERS                  "/arduino/encoders"
 #define TOPIC_TWIST                     "/s8/twist"
 
-#define PARAM_NAME_LEFT_ALPHA           "alpha_left"
-#define PARAM_NAME_RIGHT_ALPHA          "alpha_right"
-#define PARAM_NAME_LEFT_KI              "ki_left"
-#define PARAM_NAME_RIGHT_KI             "ki_right"
 #define PARAM_NAME_LEFT_KP              "kp_left"
 #define PARAM_NAME_RIGHT_KP             "kp_right"
+#define PARAM_NAME_LEFT_KI              "ki_left"
+#define PARAM_NAME_RIGHT_KI             "ki_right"
+#define PARAM_NAME_LEFT_KD              "kd_left"
+#define PARAM_NAME_RIGHT_KD             "kd_right"
 #define PARAM_NAME_WHEEL_RADIUS         "wheel_radius"
 #define PARAM_NAME_ROBOT_BASE           "robot_base"
 #define PARAM_NAME_TICKS_PER_REV        "ticks_per_rev"
@@ -26,12 +26,12 @@
 #define PARAM_NAME_PWM_LIMIT_LOW        "pwm_limit_low"
 
 // NB might have to increase KP and decrease KI
-#define PARAM_DEFAULT_LEFT_ALPHA        1.0
-#define PARAM_DEFAULT_RIGHT_ALPHA       -1.0
+#define PARAM_DEFAULT_LEFT_KP           1.0
+#define PARAM_DEFAULT_RIGHT_KP          -1.0
 #define PARAM_DEFAULT_LEFT_KI           2.0
 #define PARAM_DEFAULT_RIGHT_KI          -2.0
-#define PARAM_DEFAULT_LEFT_KP           0.2
-#define PARAM_DEFAULT_RIGHT_KP          -0.2
+#define PARAM_DEFAULT_LEFT_KD           0.2
+#define PARAM_DEFAULT_RIGHT_KD          -0.2
 #define PARAM_DEFAULT_WHEEL_RADIUS      0.05
 #define PARAM_DEFAULT_ROBOT_BASE        0.225
 #define PARAM_DEFAULT_TICKS_PER_REV     360
@@ -43,11 +43,11 @@ private:
     struct wheel {
         int delta_encoder;
         int pwm;
-        double alpha;
-        double ki;
         double kp;
+        double ki;
+        double kd;
 
-        wheel() : delta_encoder(0), pwm(0), alpha(0.0), ki(0.0), kp(0.0) {}
+        wheel() : delta_encoder(0), pwm(0), kp(0.0), ki(0.0), kd(0.0) {}
     };
 
     struct params_struct {
@@ -94,12 +94,12 @@ public:
         est_right_w = estimate_w(wheel_right.delta_encoder);
         mps_to_rps(v, w, left_w, right_w);
 
-        p_controller(&wheel_left.pwm, wheel_left.alpha, left_w, est_left_w);
-        p_controller(&wheel_right.pwm, wheel_right.alpha, right_w, est_right_w);
+        p_controller(&wheel_left.pwm, wheel_left.kp, left_w, est_left_w);
+        p_controller(&wheel_right.pwm, wheel_right.kp, right_w, est_right_w);
         i_controller(&wheel_left.pwm, wheel_left.ki, left_w, est_left_w, &I_left);
         i_controller(&wheel_right.pwm, wheel_right.ki, right_w, est_right_w, &I_right);
-        d_controller(&wheel_left.pwm, wheel_left.kp, left_w, est_left_w, &p_err_left);
-        d_controller(&wheel_right.pwm, wheel_right.kp, right_w, est_right_w, &p_err_right);
+        d_controller(&wheel_left.pwm, wheel_left.kd, left_w, est_left_w, &p_err_left);
+        d_controller(&wheel_right.pwm, wheel_right.kd, right_w, est_right_w, &p_err_right);
 
         check_pwm(&wheel_left.pwm, &wheel_right.pwm);
 
@@ -126,8 +126,8 @@ private:
         return (encoder_delta * 2 * M_PI * hz) / params.ticks_per_rev;
     }
 
-    void p_controller(int * pwm, double alpha, double w, double est_w) {
-        *pwm += alpha * (w - est_w);
+    void p_controller(int * pwm, double kp, double w, double est_w) {
+        *pwm += kp * (w - est_w);
     }
 
     void i_controller(int * pwm, double ki, double w, double est_w, double * sum_i){
@@ -136,8 +136,8 @@ private:
         * pwm += ki * *sum_i;
     }
 
-    void d_controller(int * pwm, double kp, double w, double est_w, double * prev_err){
-        * pwm += kp * ((w-est_w) - *prev_err) * HZ;
+    void d_controller(int * pwm, double kd, double w, double est_w, double * prev_err){
+        * pwm += kd * ((w-est_w) - *prev_err) * HZ;
         * prev_err = w-est_w;
     }
 
@@ -169,17 +169,17 @@ private:
     }
 
     void init_params() {
-        init_param(PARAM_NAME_LEFT_ALPHA, wheel_left.alpha, PARAM_DEFAULT_LEFT_ALPHA);
-        init_param(PARAM_NAME_RIGHT_ALPHA, wheel_right.alpha, PARAM_DEFAULT_RIGHT_ALPHA);
+        init_param(PARAM_NAME_LEFT_KP, wheel_left.kp, PARAM_DEFAULT_LEFT_KP);
+        init_param(PARAM_NAME_RIGHT_KP, wheel_right.kp, PARAM_DEFAULT_RIGHT_KP);
+        init_param(PARAM_NAME_LEFT_KI, wheel_left.ki, PARAM_DEFAULT_LEFT_KI);
+        init_param(PARAM_NAME_RIGHT_KI, wheel_right.ki, PARAM_DEFAULT_RIGHT_KI);
+        init_param(PARAM_NAME_LEFT_KD, wheel_left.kd, PARAM_DEFAULT_LEFT_KD);
+        init_param(PARAM_NAME_RIGHT_KD, wheel_right.kd, PARAM_DEFAULT_RIGHT_KD);
         init_param(PARAM_NAME_ROBOT_BASE, params.robot_base, PARAM_DEFAULT_ROBOT_BASE);
         init_param(PARAM_NAME_WHEEL_RADIUS, params.wheel_radius, PARAM_DEFAULT_WHEEL_RADIUS);
         init_param(PARAM_NAME_TICKS_PER_REV, params.ticks_per_rev, PARAM_DEFAULT_TICKS_PER_REV);
         init_param(PARAM_NAME_PWM_LIMIT_HIGH, params.pwm_limit_high, PARAM_DEFAULT_PWM_LIMIT_HIGH);
         init_param(PARAM_NAME_PWM_LIMIT_LOW, params.pwm_limit_low, PARAM_DEFAULT_PWM_LIMIT_LOW);
-        init_param(PARAM_NAME_LEFT_KI, wheel_left.ki, PARAM_DEFAULT_LEFT_KI);
-        init_param(PARAM_NAME_RIGHT_KI, wheel_right.ki, PARAM_DEFAULT_RIGHT_KI);
-        init_param(PARAM_NAME_LEFT_KP, wheel_left.kp, PARAM_DEFAULT_LEFT_KP);
-        init_param(PARAM_NAME_RIGHT_KP, wheel_right.kp, PARAM_DEFAULT_RIGHT_KP);
 
     }
 
@@ -197,8 +197,12 @@ private:
 
     void print_params() {
         ROS_INFO("--Params--");
-        ROS_INFO("%s: \t\t\t%lf", PARAM_NAME_LEFT_ALPHA, wheel_left.alpha);
-        ROS_INFO("%s: \t\t\t%lf", PARAM_NAME_RIGHT_ALPHA, wheel_right.alpha);
+        ROS_INFO("%s: \t\t\t%lf", PARAM_NAME_LEFT_KP, wheel_left.kp);
+        ROS_INFO("%s: \t\t\t%lf", PARAM_NAME_RIGHT_KP, wheel_right.kp);
+        ROS_INFO("%s: \t\t\t%lf", PARAM_NAME_LEFT_KI, wheel_left.ki);
+        ROS_INFO("%s: \t\t\t%lf", PARAM_NAME_RIGHT_KI, wheel_right.ki);
+        ROS_INFO("%s: \t\t\t%lf", PARAM_NAME_LEFT_KD, wheel_left.kd);
+        ROS_INFO("%s: \t\t\t%lf", PARAM_NAME_RIGHT_KD, wheel_right.kd);
         ROS_INFO("%s: \t\t\t%lf", PARAM_NAME_ROBOT_BASE, params.robot_base);
         ROS_INFO("%s: \t\t\t%lf", PARAM_NAME_WHEEL_RADIUS, params.wheel_radius);
         ROS_INFO("%s: \t\t\t%d", PARAM_NAME_TICKS_PER_REV, params.ticks_per_rev);
