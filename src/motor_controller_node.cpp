@@ -30,10 +30,10 @@
 // NB might have to increase KP and decrease KI
 #define PARAM_DEFAULT_LEFT_KP           1.0
 #define PARAM_DEFAULT_RIGHT_KP          -1.0
-#define PARAM_DEFAULT_LEFT_KI           2.0
-#define PARAM_DEFAULT_RIGHT_KI          -2.0
-#define PARAM_DEFAULT_LEFT_KD           0.2
-#define PARAM_DEFAULT_RIGHT_KD          -0.2
+#define PARAM_DEFAULT_LEFT_KI           1.0
+#define PARAM_DEFAULT_RIGHT_KI          -1.0
+#define PARAM_DEFAULT_LEFT_KD           1.0
+#define PARAM_DEFAULT_RIGHT_KD          -1.0
 #define PARAM_DEFAULT_WHEEL_RADIUS      0.05
 #define PARAM_DEFAULT_ROBOT_BASE        0.225
 #define PARAM_DEFAULT_TICKS_PER_REV     360
