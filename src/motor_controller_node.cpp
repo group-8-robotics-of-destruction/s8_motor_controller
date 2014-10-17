@@ -44,7 +44,7 @@ class MotorController : public s8::Node {
 private:
     struct wheel {
         int delta_encoder;
-        int pwm;
+        double pwm;
         double kp;
         double ki;
         double kd;
@@ -100,6 +100,8 @@ public:
         d_controller(wheel_left.pwm, wheel_left.kd, left_w, est_left_w, wheel_left.prev_error);
         d_controller(wheel_right.pwm, wheel_right.kd, right_w, est_right_w, wheel_right.prev_error);
 
+	ROS_INFO("left i-error: %lf, right i-error: %lf", wheel_left.sum_errors, wheel_right.sum_errors);
+
         check_pwm(wheel_left.pwm, wheel_right.pwm);
 
         publish_pwm(wheel_left.pwm, wheel_right.pwm);
@@ -125,32 +127,35 @@ private:
         return (encoder_delta * 2 * M_PI * hz) / params.ticks_per_rev;
     }
 
-    void p_controller(int & pwm, double kp, double w, double est_w) {
+    void p_controller(double & pwm, double kp, double w, double est_w) {
         pwm += kp * (w - est_w);
     }
 
-    void i_controller(int & pwm, double ki, double w, double est_w, double & sum_errors){
+    void i_controller(double & pwm, double ki, double w, double est_w, double & sum_errors){
         sum_errors += (w - est_w) * (1.0 / hz);
         pwm += ki * sum_errors;
     }
 
-    void d_controller(int & pwm, double kd, double w, double est_w, double & prev_error){
+    void d_controller(double & pwm, double kd, double w, double est_w, double & prev_error){
         pwm += kd * ((w - est_w) - prev_error) * hz;
         prev_error = w - est_w;
     }
 
-    void check_pwm(int & left_pwm, int & right_pwm){
-        if(right_pwm > params.pwm_limit_high) {
+    void check_pwm(double & left_pwm, double & right_pwm) {
+	int r = right_pwm;
+	int l = left_pwm;
+
+        if(r > params.pwm_limit_high) {
             ROS_WARN("Right PWM reached positive saturation");
             right_pwm = params.pwm_limit_high;
-        } else if(right_pwm < params.pwm_limit_low) {
+        } else if(r < params.pwm_limit_low) {
             ROS_WARN("Right PWM reached negative saturation");
             right_pwm = params.pwm_limit_low;
         }
-        if(left_pwm > params.pwm_limit_high) {
+        if(l > params.pwm_limit_high) {
             ROS_WARN("Right PWM reached positive saturation");
             left_pwm = params.pwm_limit_high;
-        } else if(left_pwm < params.pwm_limit_low) {
+        } else if(l < params.pwm_limit_low) {
             ROS_WARN("Right PWM reached negative saturation");
             left_pwm = params.pwm_limit_low;
         }
