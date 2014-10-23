@@ -8,7 +8,7 @@
 #include <s8_common_node/Node.h>
 
 #define HZ                                          10
-#define BUFFER_SIZE                                 1000
+#define BUFFER_SIZE                                 0
 
 #define NODE_NAME                                   "s8_motor_controller"
 #define TOPIC_PWM                                   "/arduino/pwm"
