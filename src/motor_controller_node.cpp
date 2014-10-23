@@ -1,4 +1,4 @@
-#include <math.h>
+#include <cmath>
 
 #include <ros/ros.h>
 #include <ras_arduino_msgs/PWM.h>
@@ -7,38 +7,40 @@
 
 #include <s8_common_node/Node.h>
 
-#define HZ                              10
-#define BUFFER_SIZE                     1000
+#define HZ                                          10
+#define BUFFER_SIZE                                 1000
 
-#define NODE_NAME                       "s8_motor_controller"
-#define TOPIC_PWM                       "/arduino/pwm"
-#define TOPIC_ENCODERS                  "/arduino/encoders"
-#define TOPIC_TWIST                     "/s8/twist"
+#define NODE_NAME                                   "s8_motor_controller"
+#define TOPIC_PWM                                   "/arduino/pwm"
+#define TOPIC_ENCODERS                              "/arduino/encoders"
+#define TOPIC_TWIST                                 "/s8/twist"
 
-#define PARAM_NAME_LEFT_KP              "kp_left"
-#define PARAM_NAME_RIGHT_KP             "kp_right"
-#define PARAM_NAME_LEFT_KI              "ki_left"
-#define PARAM_NAME_RIGHT_KI             "ki_right"
-#define PARAM_NAME_LEFT_KD              "kd_left"
-#define PARAM_NAME_RIGHT_KD             "kd_right"
-#define PARAM_NAME_WHEEL_RADIUS         "wheel_radius"
-#define PARAM_NAME_ROBOT_BASE           "robot_base"
-#define PARAM_NAME_TICKS_PER_REV        "ticks_per_rev"
-#define PARAM_NAME_PWM_LIMIT_HIGH       "pwm_limit_high"
-#define PARAM_NAME_PWM_LIMIT_LOW        "pwm_limit_low"
+#define PARAM_NAME_LEFT_KP                          "kp_left"
+#define PARAM_NAME_RIGHT_KP                         "kp_right"
+#define PARAM_NAME_LEFT_KI                          "ki_left"
+#define PARAM_NAME_RIGHT_KI                         "ki_right"
+#define PARAM_NAME_LEFT_KD                          "kd_left"
+#define PARAM_NAME_RIGHT_KD                         "kd_right"
+#define PARAM_NAME_WHEEL_RADIUS                     "wheel_radius"
+#define PARAM_NAME_ROBOT_BASE                       "robot_base"
+#define PARAM_NAME_TICKS_PER_REV                    "ticks_per_rev"
+#define PARAM_NAME_PWM_LIMIT_HIGH                   "pwm_limit_high"
+#define PARAM_NAME_PWM_LIMIT_LOW                    "pwm_limit_low"
+#define PARAM_NAME_GO_IDLE_TIME                     "go_idle_time"
 
 // NB might have to increase KP and decrease KI
-#define PARAM_DEFAULT_LEFT_KP           1.0
-#define PARAM_DEFAULT_RIGHT_KP          -1.05
-#define PARAM_DEFAULT_LEFT_KI           0.0
-#define PARAM_DEFAULT_RIGHT_KI          0.0
-#define PARAM_DEFAULT_LEFT_KD           0.6
-#define PARAM_DEFAULT_RIGHT_KD          -0.7
-#define PARAM_DEFAULT_WHEEL_RADIUS      0.05
-#define PARAM_DEFAULT_ROBOT_BASE        0.225
-#define PARAM_DEFAULT_TICKS_PER_REV     360
-#define PARAM_DEFAULT_PWM_LIMIT_HIGH    255
-#define PARAM_DEFAULT_PWM_LIMIT_LOW     -255
+#define PARAM_DEFAULT_LEFT_KP                       1.0
+#define PARAM_DEFAULT_RIGHT_KP                      -1.05
+#define PARAM_DEFAULT_LEFT_KI                       0.0
+#define PARAM_DEFAULT_RIGHT_KI                      0.0
+#define PARAM_DEFAULT_LEFT_KD                       0.6
+#define PARAM_DEFAULT_RIGHT_KD                      -0.7
+#define PARAM_DEFAULT_WHEEL_RADIUS                  0.05
+#define PARAM_DEFAULT_ROBOT_BASE                    0.225
+#define PARAM_DEFAULT_TICKS_PER_REV                 360
+#define PARAM_DEFAULT_PWM_LIMIT_HIGH                255
+#define PARAM_DEFAULT_PWM_LIMIT_LOW                 -255
+#define PARAM_DEFAULT_GO_IDLE_TIME                  1.0
 
 class MotorController : public s8::Node {
 private:
@@ -51,7 +53,16 @@ private:
         double sum_errors; //The accumulated error (the same as intergral of error from 0 to t).
         double prev_error; //The previous error to be used for the derivative controller.
 
-        wheel() : delta_encoder(0), pwm(0), kp(0.0), ki(0.0), kd(0.0), sum_errors(0.0), prev_error(0.0) {}
+        wheel() {
+            reset();
+        }
+
+        void reset() {
+            delta_encoder = 0;
+            pwm = 0;
+            sum_errors = 0.0;
+            prev_error = 0.0;
+        }
     };
 
     struct params_struct {
@@ -75,9 +86,12 @@ private:
     wheel wheel_right;
     double v;
     double w;
+    double go_idle_time; //If no packages recieved for this amount of seconds, go idle.
+    int updates_since_last_twist;
+    bool idle;
     
 public:
-    MotorController(int hz) : hz(hz), v(0), w(0) {
+    MotorController(int hz) : hz(hz), v(0), w(0), updates_since_last_twist(0), idle(false) {
         init_params();
         print_params();
         pwm_publisher = nh.advertise<ras_arduino_msgs::PWM>(TOPIC_PWM, BUFFER_SIZE);
@@ -86,6 +100,20 @@ public:
     }
 
     void update() {
+        if(idle) {
+            return;
+        }
+
+        if(updates_since_last_twist > go_idle_time * hz) {
+            ROS_WARN("Turning idle due to no messages in %.2lf seconds", go_idle_time);
+            v = 0.0;
+            w = 0.0;
+            wheel_left.reset();
+            wheel_right.reset();
+            idle = true;
+            return;
+        }
+
         double left_w;
         double right_w;
         calculate_wheel_velocities(v, w, left_w, right_w);
@@ -100,22 +128,39 @@ public:
         d_controller(wheel_left.pwm, wheel_left.kd, left_w, est_left_w, wheel_left.prev_error);
         d_controller(wheel_right.pwm, wheel_right.kd, right_w, est_right_w, wheel_right.prev_error);
 
-	ROS_INFO("left i-error: %lf, right i-error: %lf", wheel_left.sum_errors, wheel_right.sum_errors);
+        ROS_INFO("left speed: %lf right speed: %lf", est_left_w, est_right_w);
 
         check_pwm(wheel_left.pwm, wheel_right.pwm);
-
         publish_pwm(wheel_left.pwm, wheel_right.pwm);
+
+        updates_since_last_twist++;
     }
 
 private:
     void twist_callback(const geometry_msgs::Twist::ConstPtr & twist) {
         v = twist->linear.x;
         w = twist->angular.z;
+        updates_since_last_twist = 0;
+        idle = false;
     }
 
     void encoders_callback(const ras_arduino_msgs::Encoders::ConstPtr & encoders) {
-        wheel_left.delta_encoder = encoders->delta_encoder2;
-        wheel_right.delta_encoder = encoders->delta_encoder1;
+        int left = encoders->delta_encoder2;
+        int right = encoders->delta_encoder1;
+
+        if(idle) {
+            //If the wheels are moving we need to stop them.
+            //Sometimes the encoders show 1/2/3 when its still.
+            const int encoder_still_treshold = 3;
+
+            if(std::abs(left) >= encoder_still_treshold || std::abs(right) >= encoder_still_treshold) {
+                publish_pwm(0, 0);
+                ROS_INFO("Controller is idle but wheels are moving. Left: %d, right: %d. Stopping...", left, right);
+            }
+        }
+
+        wheel_left.delta_encoder = left;
+        wheel_right.delta_encoder = right;
     }
 
     void calculate_wheel_velocities(double v, double w, double & left_w, double & right_w) {
@@ -142,8 +187,8 @@ private:
     }
 
     void check_pwm(double & left_pwm, double & right_pwm) {
-	int r = right_pwm;
-	int l = left_pwm;
+        int r = right_pwm;
+        int l = left_pwm;
 
         if(r > params.pwm_limit_high) {
             ROS_WARN("Right PWM reached positive saturation");
@@ -153,10 +198,10 @@ private:
             right_pwm = params.pwm_limit_low;
         }
         if(l > params.pwm_limit_high) {
-            ROS_WARN("Right PWM reached positive saturation");
+            ROS_WARN("Left PWM reached positive saturation");
             left_pwm = params.pwm_limit_high;
         } else if(l < params.pwm_limit_low) {
-            ROS_WARN("Right PWM reached negative saturation");
+            ROS_WARN("Left PWM reached negative saturation");
             left_pwm = params.pwm_limit_low;
         }
     }
@@ -183,6 +228,7 @@ private:
         add_param(PARAM_NAME_TICKS_PER_REV, params.ticks_per_rev, PARAM_DEFAULT_TICKS_PER_REV);
         add_param(PARAM_NAME_PWM_LIMIT_HIGH, params.pwm_limit_high, PARAM_DEFAULT_PWM_LIMIT_HIGH);
         add_param(PARAM_NAME_PWM_LIMIT_LOW, params.pwm_limit_low, PARAM_DEFAULT_PWM_LIMIT_LOW);
+        add_param(PARAM_NAME_GO_IDLE_TIME, go_idle_time, PARAM_DEFAULT_GO_IDLE_TIME);
     }
 };
 
