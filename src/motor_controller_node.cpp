@@ -35,7 +35,7 @@
 #define PARAM_NAME_ENCODERS_STILL_TRESHOLD          "encoders_still_treshold"
 
 // NB might have to increase KP and decrease KI
-#define PARAM_DEFAULT_LEFT_KP                       1.0
+#define PARAM_DEFAULT_LEFT_KP                       1.05
 #define PARAM_DEFAULT_RIGHT_KP                      -1.05
 #define PARAM_DEFAULT_LEFT_KI                       0.0
 #define PARAM_DEFAULT_RIGHT_KI                      0.0
