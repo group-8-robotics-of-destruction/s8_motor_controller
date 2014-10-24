@@ -1,0 +1,9 @@
+#goal
+bool stop
+---
+#result
+bool stopped
+---
+#feedback
+int32 delta_encoder_left
+int32 delta_encoder_right

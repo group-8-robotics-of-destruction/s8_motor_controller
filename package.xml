@@ -19,10 +19,14 @@
   <build_depend>ras_arduino_msgs</build_depend>
   <build_depend>geometry_msgs</build_depend>
   <build_depend>s8_common_node</build_depend>
+  <build_depend>actionlib_msgs</build_depend>
+  <build_depend>actionlib</build_depend>
 
   <run_depend>roscpp</run_depend>
   <run_depend>ras_arduino_msgs</run_depend>
   <run_depend>geometry_msgs</run_depend>
   <run_depend>s8_common_node</run_depend>
+  <run_depend>actionlib_msgs</run_depend>
+  <run_depend>actionlib</run_depend>
 
 </package>

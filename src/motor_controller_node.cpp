@@ -1,11 +1,14 @@
 #include <cmath>
 
 #include <ros/ros.h>
+#include <actionlib/server/simple_action_server.h>
+#include <s8_common_node/Node.h>
+
 #include <ras_arduino_msgs/PWM.h>
 #include <geometry_msgs/Twist.h>
 #include <ras_arduino_msgs/Encoders.h>
+#include <s8_motor_controller/StopAction.h>
 
-#include <s8_common_node/Node.h>
 
 #define HZ                                          10
 #define BUFFER_SIZE                                 0
@@ -14,6 +17,8 @@
 #define TOPIC_PWM                                   "/arduino/pwm"
 #define TOPIC_ENCODERS                              "/arduino/encoders"
 #define TOPIC_TWIST                                 "/s8/twist"
+
+#define ACTION_STOP                                 "stop"
 
 #define PARAM_NAME_LEFT_KP                          "kp_left"
 #define PARAM_NAME_RIGHT_KP                         "kp_right"
@@ -80,6 +85,8 @@ private:
     ros::Publisher pwm_publisher;
     ros::Subscriber twist_subscriber;
     ros::Subscriber encoders_subscriber;
+    actionlib::SimpleActionServer<s8_motor_controller::StopAction> stop_action;
+    s8_motor_controller::StopResult stop_action_result;
 
     params_struct params;
     wheel wheel_left;
@@ -91,12 +98,13 @@ private:
     bool idle;
     
 public:
-    MotorController(int hz) : hz(hz), v(0), w(0), updates_since_last_twist(0), idle(false) {
+    MotorController(int hz) : Node(), hz(hz), v(0), w(0), updates_since_last_twist(0), idle(false), stop_action(nh, ACTION_STOP, boost::bind(&MotorController::action_execute_stop_callback, this, _1), false) {
         init_params();
         print_params();
         pwm_publisher = nh.advertise<ras_arduino_msgs::PWM>(TOPIC_PWM, BUFFER_SIZE);
         twist_subscriber = nh.subscribe<geometry_msgs::Twist>(TOPIC_TWIST, BUFFER_SIZE, &MotorController::twist_callback, this);
         encoders_subscriber = nh.subscribe<ras_arduino_msgs::Encoders>(TOPIC_ENCODERS, BUFFER_SIZE, &MotorController::encoders_callback, this);
+        stop_action.start();
     }
 
     void update() {
@@ -136,7 +144,15 @@ public:
         updates_since_last_twist++;
     }
 
+    void action_execute_stop_callback(const s8_motor_controller::StopGoalConstPtr & goal) {
+        stop_action_result.stopped = true;
+        ROS_INFO("Action stop finished.");
+        stop_action.setSucceeded(stop_action_result);
+    }
+
 private:
+    
+
     void twist_callback(const geometry_msgs::Twist::ConstPtr & twist) {
         v = twist->linear.x;
         w = twist->angular.z;
