@@ -11,7 +11,7 @@
 
 
 #define HZ                                          10
-#define BUFFER_SIZE                                 0
+#define BUFFER_SIZE                                 1
 
 #define NODE_NAME                                   "s8_motor_controller"
 #define TOPIC_PWM                                   "/arduino/pwm"
