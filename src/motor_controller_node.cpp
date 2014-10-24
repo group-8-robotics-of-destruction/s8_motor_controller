@@ -32,6 +32,7 @@
 #define PARAM_NAME_PWM_LIMIT_HIGH                   "pwm_limit_high"
 #define PARAM_NAME_PWM_LIMIT_LOW                    "pwm_limit_low"
 #define PARAM_NAME_GO_IDLE_TIME                     "go_idle_time"
+#define PARAM_NAME_ENCODERS_STILL_TRESHOLD          "encoders_still_treshold"
 
 // NB might have to increase KP and decrease KI
 #define PARAM_DEFAULT_LEFT_KP                       1.0
@@ -46,6 +47,11 @@
 #define PARAM_DEFAULT_PWM_LIMIT_HIGH                255
 #define PARAM_DEFAULT_PWM_LIMIT_LOW                 -255
 #define PARAM_DEFAULT_GO_IDLE_TIME                  1.0
+#define PARAM_DEFAULT_ENCODERS_STILL_TRESHOLD       3
+
+bool zero(double value) {
+    return std::abs(value) < 0.000001;
+}
 
 class MotorController : public s8::Node {
 private:
@@ -86,7 +92,6 @@ private:
     ros::Subscriber twist_subscriber;
     ros::Subscriber encoders_subscriber;
     actionlib::SimpleActionServer<s8_motor_controller::StopAction> stop_action;
-    s8_motor_controller::StopResult stop_action_result;
 
     params_struct params;
     wheel wheel_left;
@@ -96,9 +101,12 @@ private:
     double go_idle_time; //If no packages recieved for this amount of seconds, go idle.
     int updates_since_last_twist;
     bool idle;
-    
+    bool is_stopping;
+    int encoder_still_treshold;
+    bool is_still;
+
 public:
-    MotorController(int hz) : Node(), hz(hz), v(0), w(0), updates_since_last_twist(0), idle(false), stop_action(nh, ACTION_STOP, boost::bind(&MotorController::action_execute_stop_callback, this, _1), false) {
+    MotorController(int hz) : Node(), hz(hz), v(0), w(0), updates_since_last_twist(0), idle(false), is_still(false), stop_action(nh, ACTION_STOP, boost::bind(&MotorController::action_execute_stop_callback, this, _1), false), is_stopping(false) {
         init_params();
         print_params();
         pwm_publisher = nh.advertise<ras_arduino_msgs::PWM>(TOPIC_PWM, BUFFER_SIZE);
@@ -114,11 +122,7 @@ public:
 
         if(updates_since_last_twist > go_idle_time * hz) {
             ROS_WARN("Turning idle due to no messages in %.2lf seconds", go_idle_time);
-            v = 0.0;
-            w = 0.0;
-            wheel_left.reset();
-            wheel_right.reset();
-            idle = true;
+            stop();
             return;
         }
 
@@ -144,20 +148,57 @@ public:
         updates_since_last_twist++;
     }
 
-    void action_execute_stop_callback(const s8_motor_controller::StopGoalConstPtr & goal) {
-        stop_action_result.stopped = true;
-        ROS_INFO("Action stop finished.");
-        stop_action.setSucceeded(stop_action_result);
+private:
+    void stop() {
+        v = 0.0;
+        w = 0.0;
+        wheel_left.reset();
+        wheel_right.reset();
+        idle = true;
     }
 
-private:
-    
+    void action_execute_stop_callback(const s8_motor_controller::StopGoalConstPtr & goal) {
+        stop();
+        is_stopping = true;
+
+        const int timeout = 10; // 10 seconds.
+        const int rate_hz = 10;
+
+        ros::Rate rate(rate_hz);
+
+        int ticks = 0;
+
+        while(!is_still && ticks <= timeout * rate_hz) {
+            rate.sleep();
+            ticks++;
+        }
+
+        if(ticks >= timeout * rate_hz) {
+            ROS_WARN("Unable to stop. Stop action failed.");
+            s8_motor_controller::StopResult stop_action_result;
+            stop_action_result.stopped = false;
+            stop_action.setAborted(stop_action_result);
+        } else {
+            s8_motor_controller::StopResult stop_action_result;
+            stop_action_result.stopped = true;
+            stop_action.setSucceeded(stop_action_result);
+            ROS_INFO("Stop action succeeded");
+        }
+
+        is_stopping = false;
+    }
 
     void twist_callback(const geometry_msgs::Twist::ConstPtr & twist) {
+        if(is_stopping) {
+            ROS_WARN("Twist recieved while stopping! Ignoring twist until stopped.");
+            return;
+        }
+
         v = twist->linear.x;
         w = twist->angular.z;
         updates_since_last_twist = 0;
         idle = false;
+        is_still = false;
     }
 
     void encoders_callback(const ras_arduino_msgs::Encoders::ConstPtr & encoders) {
@@ -167,11 +208,12 @@ private:
         if(idle) {
             //If the wheels are moving we need to stop them.
             //Sometimes the encoders show 1/2/3 when its still.
-            const int encoder_still_treshold = 3;
-
             if(std::abs(left) >= encoder_still_treshold || std::abs(right) >= encoder_still_treshold) {
                 publish_pwm(0, 0);
                 ROS_INFO("Controller is idle but wheels are moving. Left: %d, right: %d. Stopping...", left, right);
+                is_still = false;
+            } else {
+                is_still = true;
             }
         }
 
@@ -245,6 +287,7 @@ private:
         add_param(PARAM_NAME_PWM_LIMIT_HIGH, params.pwm_limit_high, PARAM_DEFAULT_PWM_LIMIT_HIGH);
         add_param(PARAM_NAME_PWM_LIMIT_LOW, params.pwm_limit_low, PARAM_DEFAULT_PWM_LIMIT_LOW);
         add_param(PARAM_NAME_GO_IDLE_TIME, go_idle_time, PARAM_DEFAULT_GO_IDLE_TIME);
+        add_param(PARAM_NAME_ENCODERS_STILL_TRESHOLD, encoder_still_treshold, PARAM_DEFAULT_ENCODERS_STILL_TRESHOLD);
     }
 };
 
