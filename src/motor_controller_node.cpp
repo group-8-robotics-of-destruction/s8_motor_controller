@@ -171,6 +171,12 @@ private:
     }
 
     void action_execute_stop_callback(const s8_motor_controller::StopGoalConstPtr & goal) {
+        ROS_INFO("STOP");
+
+        if(is_stopping) {
+            ROS_FATAL("Stop action callback executed but is already stopping");
+        }
+
         stop();
         is_stopping = true;
 
