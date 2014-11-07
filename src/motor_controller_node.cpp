@@ -17,6 +17,7 @@
 #define TOPIC_PWM                                   "/arduino/pwm"
 #define TOPIC_ENCODERS                              "/arduino/encoders"
 #define TOPIC_TWIST                                 "/s8/twist"
+#define TOPIC_ACTUAL_TWIST                          "/s8/actual_twist"
 
 #define ACTION_STOP                                 "stop"
 
@@ -89,6 +90,7 @@ private:
     const int hz;
 
     ros::Publisher pwm_publisher;
+    ros::Publisher actual_twist_publisher;
     ros::Subscriber twist_subscriber;
     ros::Subscriber encoders_subscriber;
     actionlib::SimpleActionServer<s8_motor_controller::StopAction> stop_action;
@@ -110,6 +112,7 @@ public:
         init_params();
         print_params();
         pwm_publisher = nh.advertise<ras_arduino_msgs::PWM>(TOPIC_PWM, BUFFER_SIZE);
+        actual_twist_publisher = nh.advertise<geometry_msgs::Twist>(TOPIC_ACTUAL_TWIST, BUFFER_SIZE);
         twist_subscriber = nh.subscribe<geometry_msgs::Twist>(TOPIC_TWIST, BUFFER_SIZE, &MotorController::twist_callback, this);
         encoders_subscriber = nh.subscribe<ras_arduino_msgs::Encoders>(TOPIC_ENCODERS, BUFFER_SIZE, &MotorController::encoders_callback, this);
         stop_action.start();
@@ -144,6 +147,16 @@ public:
 
         check_pwm(wheel_left.pwm, wheel_right.pwm);
         publish_pwm(wheel_left.pwm, wheel_right.pwm);
+
+        auto get_actual_v = [&est_right_w, &est_left_w, this]() {
+            return ((est_right_w + est_left_w) / 2) * params.wheel_radius;
+        };
+
+        auto get_actual_w = [&est_right_w, &est_left_w, this]() {
+            return ((est_right_w - est_left_w) / params.robot_base) * params.wheel_radius;
+        };
+
+        publish_actual_twist(get_actual_v(), get_actual_w());
 
         updates_since_last_twist++;
     }
@@ -272,6 +285,13 @@ private:
         pwm_publisher.publish(pwm_message);
 
         ROS_INFO("left: %d right: %d", left, right);
+    }
+
+    void publish_actual_twist(double v, double w) {
+        geometry_msgs::Twist twist_message;
+        twist_message.linear.x = v;
+        twist_message.angular.z = w;
+        actual_twist_publisher.publish(twist_message);
     }
 
     void init_params() {
