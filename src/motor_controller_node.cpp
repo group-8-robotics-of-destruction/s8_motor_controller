@@ -5,6 +5,7 @@
 #include <ros/ros.h>
 #include <actionlib/server/simple_action_server.h>
 #include <s8_common_node/Node.h>
+#include <s8_pid/PIDController.h>
 
 #include <ras_arduino_msgs/PWM.h>
 #include <geometry_msgs/Twist.h>
@@ -45,6 +46,7 @@
 #define PARAM_DEFAULT_ENCODERS_STILL_TRESHOLD       3
 
 using namespace s8::motor_controller_node;
+using namespace s8::s8_pid;
 
 bool zero(double value) {
     return std::abs(value) < 0.000001;
@@ -55,21 +57,16 @@ private:
     struct wheel {
         int delta_encoder;
         double pwm;
-        double kp;
-        double ki;
-        double kd;
-        double sum_errors; //The accumulated error (the same as intergral of error from 0 to t).
-        double prev_error; //The previous error to be used for the derivative controller.
+        PIDController pid_controller;
 
-        wheel() {
+        wheel(int hz) : pid_controller(hz) {
             reset();
         }
 
         void reset() {
             delta_encoder = 0;
             pwm = 0;
-            sum_errors = 0.0;
-            prev_error = 0.0;
+            pid_controller.reset();
         }
     };
 
@@ -104,7 +101,7 @@ private:
     bool is_still;
 
 public:
-    MotorController(int hz) : Node(), hz(hz), v(0), w(0), updates_since_last_twist(0), idle(false), is_still(false), stop_action(nh, ACTION_STOP, boost::bind(&MotorController::action_execute_stop_callback, this, _1), false), is_stopping(false) {
+    MotorController(int hz) : Node(), hz(hz), wheel_left(hz), wheel_right(hz), v(0), w(0), updates_since_last_twist(0), idle(false), is_still(false), stop_action(nh, ACTION_STOP, boost::bind(&MotorController::action_execute_stop_callback, this, _1), false), is_stopping(false) {
         init_params();
         print_params();
         pwm_publisher = nh.advertise<ras_arduino_msgs::PWM>(TOPIC_PWM, BUFFER_SIZE);
@@ -132,14 +129,8 @@ public:
         double est_left_w = estimate_w(wheel_left.delta_encoder);
         double est_right_w = estimate_w(wheel_right.delta_encoder);
 
-        p_controller(wheel_left.pwm, wheel_left.kp, left_w, est_left_w);
-        p_controller(wheel_right.pwm, wheel_right.kp, right_w, est_right_w);
-        i_controller(wheel_left.pwm, wheel_left.ki, left_w, est_left_w, wheel_left.sum_errors);
-        i_controller(wheel_right.pwm, wheel_right.ki, right_w, est_right_w, wheel_right.sum_errors);
-        d_controller(wheel_left.pwm, wheel_left.kd, left_w, est_left_w, wheel_left.prev_error);
-        d_controller(wheel_right.pwm, wheel_right.kd, right_w, est_right_w, wheel_right.prev_error);
-
-        ROS_INFO("left speed: %lf right speed: %lf", est_left_w, est_right_w);
+        wheel_left.pid_controller.update(wheel_left.pwm, left_w - est_left_w);
+        wheel_right.pid_controller.update(wheel_right.pwm, right_w - est_right_w);
 
         check_pwm(wheel_left.pwm, wheel_right.pwm);
         publish_pwm(wheel_left.pwm, wheel_right.pwm);
@@ -245,20 +236,6 @@ private:
         return (encoder_delta * 2 * M_PI * hz) / params.ticks_per_rev;
     }
 
-    void p_controller(double & pwm, double kp, double w, double est_w) {
-        pwm += kp * (w - est_w);
-    }
-
-    void i_controller(double & pwm, double ki, double w, double est_w, double & sum_errors){
-        sum_errors += (w - est_w) * (1.0 / hz);
-        pwm += ki * sum_errors;
-    }
-
-    void d_controller(double & pwm, double kd, double w, double est_w, double & prev_error){
-        pwm += kd * ((w - est_w) - prev_error) * hz;
-        prev_error = w - est_w;
-    }
-
     void check_pwm(double & left_pwm, double & right_pwm) {
         int r = right_pwm;
         int l = left_pwm;
@@ -297,12 +274,12 @@ private:
     }
 
     void init_params() {
-        add_param(PARAM_NAME_LEFT_KP, wheel_left.kp, PARAM_DEFAULT_LEFT_KP);
-        add_param(PARAM_NAME_RIGHT_KP, wheel_right.kp, PARAM_DEFAULT_RIGHT_KP);
-        add_param(PARAM_NAME_LEFT_KI, wheel_left.ki, PARAM_DEFAULT_LEFT_KI);
-        add_param(PARAM_NAME_RIGHT_KI, wheel_right.ki, PARAM_DEFAULT_RIGHT_KI);
-        add_param(PARAM_NAME_LEFT_KD, wheel_left.kd, PARAM_DEFAULT_LEFT_KD);
-        add_param(PARAM_NAME_RIGHT_KD, wheel_right.kd, PARAM_DEFAULT_RIGHT_KD);
+        add_param(PARAM_NAME_LEFT_KP, wheel_left.pid_controller.kp, PARAM_DEFAULT_LEFT_KP);
+        add_param(PARAM_NAME_RIGHT_KP, wheel_right.pid_controller.kp, PARAM_DEFAULT_RIGHT_KP);
+        add_param(PARAM_NAME_LEFT_KI, wheel_left.pid_controller.ki, PARAM_DEFAULT_LEFT_KI);
+        add_param(PARAM_NAME_RIGHT_KI, wheel_right.pid_controller.ki, PARAM_DEFAULT_RIGHT_KI);
+        add_param(PARAM_NAME_LEFT_KD, wheel_left.pid_controller.kd, PARAM_DEFAULT_LEFT_KD);
+        add_param(PARAM_NAME_RIGHT_KD, wheel_right.pid_controller.kd, PARAM_DEFAULT_RIGHT_KD);
         add_param(PARAM_NAME_ROBOT_BASE, params.robot_base, PARAM_DEFAULT_ROBOT_BASE);
         add_param(PARAM_NAME_WHEEL_RADIUS, params.wheel_radius, PARAM_DEFAULT_WHEEL_RADIUS);
         add_param(PARAM_NAME_TICKS_PER_REV, params.ticks_per_rev, PARAM_DEFAULT_TICKS_PER_REV);
