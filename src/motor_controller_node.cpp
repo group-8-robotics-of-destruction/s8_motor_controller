@@ -1,4 +1,4 @@
-#include "motor_controller_node.h"
+#include <s8_motor_controller/motor_controller_node.h>
 
 #include <cmath>
 

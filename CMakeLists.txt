@@ -18,6 +18,7 @@ generate_messages(
 catkin_package(
   DEPENDS
   CATKIN_DEPENDS roscpp ras_arduino_msgs geometry_msgs s8_common_node actionlib_msgs actionlib
+  INCLUDE_DIRS include
 )
 
 include_directories(include ${catkin_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS})

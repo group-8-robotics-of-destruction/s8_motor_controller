@@ -6,13 +6,13 @@
 
 namespace s8 {
     namespace motor_controller_node {
-        const char *        NODE_NAME =                 "s8_motor_controller";
-        const char *        TOPIC_PWM =                 "/arduino/pwm";
-        const char *        TOPIC_ENCODERS =            "/arduino/encoders";
-        const char *        TOPIC_TWIST =               "/s8/twist";
-        const char *        TOPIC_ACTUAL_TWIST =        "/s8/actual_twist";
+        const std::string NODE_NAME =                 "s8_motor_controller";
+        const std::string TOPIC_PWM =                 "/arduino/pwm";
+        const std::string TOPIC_ENCODERS =            "/arduino/encoders";
+        const std::string TOPIC_TWIST =               "/s8/twist";
+        const std::string TOPIC_ACTUAL_TWIST =        "/s8/actual_twist";
 
-        const char *        ACTION_STOP =               "stop";
+        const std::string ACTION_STOP =               "/" + NODE_NAME + "/stop";
 
         /**
          * Positive angular velocity (w) will make the robot spin counter-clockwise (left).
