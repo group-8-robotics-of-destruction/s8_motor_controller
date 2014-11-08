@@ -1,3 +1,5 @@
+#include "motor_controller_node.h"
+
 #include <cmath>
 
 #include <ros/ros.h>
@@ -12,14 +14,6 @@
 
 #define HZ                                          10
 #define BUFFER_SIZE                                 1
-
-#define NODE_NAME                                   "s8_motor_controller"
-#define TOPIC_PWM                                   "/arduino/pwm"
-#define TOPIC_ENCODERS                              "/arduino/encoders"
-#define TOPIC_TWIST                                 "/s8/twist"
-#define TOPIC_ACTUAL_TWIST                          "/s8/actual_twist"
-
-#define ACTION_STOP                                 "stop"
 
 #define PARAM_NAME_LEFT_KP                          "kp_left"
 #define PARAM_NAME_RIGHT_KP                         "kp_right"
@@ -49,6 +43,8 @@
 #define PARAM_DEFAULT_PWM_LIMIT_LOW                 -255
 #define PARAM_DEFAULT_GO_IDLE_TIME                  1.0
 #define PARAM_DEFAULT_ENCODERS_STILL_TRESHOLD       3
+
+using namespace s8::motor_controller_node;
 
 bool zero(double value) {
     return std::abs(value) < 0.000001;
