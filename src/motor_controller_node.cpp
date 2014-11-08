@@ -1,17 +1,15 @@
-#include <s8_motor_controller/motor_controller_node.h>
-
 #include <cmath>
-
 #include <ros/ros.h>
-#include <actionlib/server/simple_action_server.h>
+
+#include <s8_motor_controller/motor_controller_node.h>
 #include <s8_common_node/Node.h>
 #include <s8_pid/PIDController.h>
+#include <actionlib/server/simple_action_server.h>
 
 #include <ras_arduino_msgs/PWM.h>
 #include <geometry_msgs/Twist.h>
 #include <ras_arduino_msgs/Encoders.h>
 #include <s8_motor_controller/StopAction.h>
-
 
 #define HZ                                          10
 #define BUFFER_SIZE                                 1
@@ -46,11 +44,7 @@
 #define PARAM_DEFAULT_ENCODERS_STILL_TRESHOLD       3
 
 using namespace s8::motor_controller_node;
-using namespace s8::s8_pid;
-
-bool zero(double value) {
-    return std::abs(value) < 0.000001;
-}
+using namespace s8::pid;
 
 class MotorController : public s8::Node {
 private:
