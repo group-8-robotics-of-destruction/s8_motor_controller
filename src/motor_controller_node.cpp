@@ -106,6 +106,7 @@ private:
     bool is_stopping;
     int encoder_still_treshold;
     bool is_still;
+    int ticks_since_last_encoder_callback;
 
 public:
     MotorController(int hz) : Node(), hz(hz), v(0), w(0), updates_since_last_twist(0), idle(false), is_still(false), stop_action(nh, ACTION_STOP, boost::bind(&MotorController::action_execute_stop_callback, this, _1), false), is_stopping(false) {
@@ -185,14 +186,22 @@ private:
 
         ros::Rate rate(rate_hz);
 
+        const int encoder_callback_ticks_treshold = 10;
+
         int ticks = 0;
 
-        while(!is_still && ticks <= timeout * rate_hz) {
+        while(!is_still && ticks <= timeout * rate_hz && ticks_since_last_encoder_callback < encoder_callback_ticks_treshold) {
             rate.sleep();
             ticks++;
+            ticks_since_last_encoder_callback++;
         }
 
-        if(ticks >= timeout * rate_hz) {
+        if(ticks_since_last_encoder_callback >= encoder_callback_ticks_treshold) {
+            ROS_INFO("No encoder callback in %d ticks. Assuming still.", ticks_since_last_encoder_callback);
+            is_still = true;
+        }
+
+        if(!is_still) {
             ROS_WARN("Unable to stop. Stop action failed.");
             s8_motor_controller::StopResult stop_action_result;
             stop_action_result.stopped = false;
@@ -221,6 +230,8 @@ private:
     }
 
     void encoders_callback(const ras_arduino_msgs::Encoders::ConstPtr & encoders) {
+        ticks_since_last_encoder_callback = 0;
+
         int left = encoders->delta_encoder2;
         int right = encoders->delta_encoder1;
 
