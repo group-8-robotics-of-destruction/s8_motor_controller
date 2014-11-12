@@ -2,6 +2,7 @@
 #include <ros/ros.h>
 
 #include <s8_motor_controller/motor_controller_node.h>
+#include <s8_utils/math.h>
 #include <s8_common_node/Node.h>
 #include <s8_pid/PIDController.h>
 #include <actionlib/server/simple_action_server.h>
@@ -27,6 +28,7 @@
 #define PARAM_NAME_PWM_LIMIT_LOW                    "pwm_limit_low"
 #define PARAM_NAME_GO_IDLE_TIME                     "go_idle_time"
 #define PARAM_NAME_ENCODERS_STILL_TRESHOLD          "encoders_still_treshold"
+#define PARAM_NAME_PWM_TRESHOLD_LOW                 "pwm_treshold_low"
 
 // NB might have to increase KP and decrease KI
 #define PARAM_DEFAULT_LEFT_KP                       1.10
@@ -42,9 +44,11 @@
 #define PARAM_DEFAULT_PWM_LIMIT_LOW                 -255
 #define PARAM_DEFAULT_GO_IDLE_TIME                  1.0
 #define PARAM_DEFAULT_ENCODERS_STILL_TRESHOLD       3
+#define PARAM_DEFAULT_PWM_TRESHOLD_LOW              55
 
 using namespace s8::motor_controller_node;
 using namespace s8::pid;
+using namespace s8::utils::math;
 
 class MotorController : public s8::Node {
 private:
@@ -70,8 +74,9 @@ private:
         int ticks_per_rev;
         int pwm_limit_high;
         int pwm_limit_low;
+        int pwm_treshold_low;
 
-        params_struct() : wheel_radius(0.0), robot_base(0.0), ticks_per_rev(0), pwm_limit_high(0), pwm_limit_low(0) {}
+        params_struct() : wheel_radius(0.0), robot_base(0.0), ticks_per_rev(0), pwm_limit_high(0), pwm_limit_low(0), pwm_treshold_low(0.0) {}
     };
 
     const int hz;
@@ -259,6 +264,18 @@ private:
             ROS_WARN("Left PWM reached negative saturation");
             left_pwm = params.pwm_limit_low;
         }
+
+        if(is_zero(v)) {
+            if(r != 0 && std::abs(r) < params.pwm_treshold_low) {
+                ROS_WARN("Right PWM: %d is below treshold", r);
+                right_pwm = sign(r) * params.pwm_treshold_low;
+            }
+
+            if(l != 0 && std::abs(l) < params.pwm_treshold_low) {
+                ROS_WARN("Left PWM: %d is below treshold", l);
+                left_pwm = sign(l) * params.pwm_treshold_low;
+            }
+        }
     }
 
     void publish_pwm(int left, int right) {
@@ -290,6 +307,7 @@ private:
         add_param(PARAM_NAME_TICKS_PER_REV, params.ticks_per_rev, PARAM_DEFAULT_TICKS_PER_REV);
         add_param(PARAM_NAME_PWM_LIMIT_HIGH, params.pwm_limit_high, PARAM_DEFAULT_PWM_LIMIT_HIGH);
         add_param(PARAM_NAME_PWM_LIMIT_LOW, params.pwm_limit_low, PARAM_DEFAULT_PWM_LIMIT_LOW);
+        add_param(PARAM_NAME_PWM_TRESHOLD_LOW, params.pwm_treshold_low, PARAM_DEFAULT_PWM_TRESHOLD_LOW);
         add_param(PARAM_NAME_GO_IDLE_TIME, go_idle_time, PARAM_DEFAULT_GO_IDLE_TIME);
         add_param(PARAM_NAME_ENCODERS_STILL_TRESHOLD, encoder_still_treshold, PARAM_DEFAULT_ENCODERS_STILL_TRESHOLD);
     }
