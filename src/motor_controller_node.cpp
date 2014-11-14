@@ -12,7 +12,7 @@
 #include <ras_arduino_msgs/Encoders.h>
 #include <s8_motor_controller/StopAction.h>
 
-#define HZ                                          10
+#define HZ                                          50
 #define BUFFER_SIZE                                 1
 
 #define PARAM_NAME_LEFT_KP                          "kp_left"
