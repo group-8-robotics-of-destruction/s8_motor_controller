@@ -12,7 +12,7 @@
 #include <ras_arduino_msgs/Encoders.h>
 #include <s8_motor_controller/StopAction.h>
 
-#define HZ                                          10
+#define HZ                                          25
 #define BUFFER_SIZE                                 1
 
 #define PARAM_NAME_LEFT_KP                          "kp_left"
@@ -31,20 +31,20 @@
 #define PARAM_NAME_PWM_TRESHOLD_LOW                 "pwm_treshold_low"
 
 // NB might have to increase KP and decrease KI
-#define PARAM_DEFAULT_LEFT_KP                       1.10
-#define PARAM_DEFAULT_RIGHT_KP                      -1.05
+#define PARAM_DEFAULT_LEFT_KP                       0.92
+#define PARAM_DEFAULT_RIGHT_KP                      -1.15
 #define PARAM_DEFAULT_LEFT_KI                       0.0
 #define PARAM_DEFAULT_RIGHT_KI                      0.0
-#define PARAM_DEFAULT_LEFT_KD                       0.6
-#define PARAM_DEFAULT_RIGHT_KD                      -0.7
+#define PARAM_DEFAULT_LEFT_KD                       0.5
+#define PARAM_DEFAULT_RIGHT_KD                      -0.42
 #define PARAM_DEFAULT_WHEEL_RADIUS                  0.05
-#define PARAM_DEFAULT_ROBOT_BASE                    0.225
+#define PARAM_DEFAULT_ROBOT_BASE                    0.205
 #define PARAM_DEFAULT_TICKS_PER_REV                 360
 #define PARAM_DEFAULT_PWM_LIMIT_HIGH                255
 #define PARAM_DEFAULT_PWM_LIMIT_LOW                 -255
 #define PARAM_DEFAULT_GO_IDLE_TIME                  1.0
 #define PARAM_DEFAULT_ENCODERS_STILL_TRESHOLD       3
-#define PARAM_DEFAULT_PWM_TRESHOLD_LOW              55
+#define PARAM_DEFAULT_PWM_TRESHOLD_LOW              65
 
 using namespace s8::motor_controller_node;
 using namespace s8::pid;
