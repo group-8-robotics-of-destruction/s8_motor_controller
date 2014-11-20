@@ -44,7 +44,7 @@
 #define PARAM_DEFAULT_PWM_LIMIT_LOW                 -255
 #define PARAM_DEFAULT_GO_IDLE_TIME                  1.0
 #define PARAM_DEFAULT_ENCODERS_STILL_TRESHOLD       3
-#define PARAM_DEFAULT_PWM_TRESHOLD_LOW              65
+#define PARAM_DEFAULT_PWM_TRESHOLD_LOW              25
 
 using namespace s8::motor_controller_node;
 using namespace s8::pid;
