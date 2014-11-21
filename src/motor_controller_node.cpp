@@ -38,7 +38,11 @@
 #define PARAM_DEFAULT_LEFT_KD                       0.5
 #define PARAM_DEFAULT_RIGHT_KD                      -0.42
 #define PARAM_DEFAULT_WHEEL_RADIUS                  0.05
+<<<<<<< HEAD
 #define PARAM_DEFAULT_ROBOT_BASE                    0.205
+=======
+#define PARAM_DEFAULT_ROBOT_BASE                    0.215
+>>>>>>> 8bd109111f171606461f0e8997d47d6a43b7bb02
 #define PARAM_DEFAULT_TICKS_PER_REV                 360
 #define PARAM_DEFAULT_PWM_LIMIT_HIGH                255
 #define PARAM_DEFAULT_PWM_LIMIT_LOW                 -255
