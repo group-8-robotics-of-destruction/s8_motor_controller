@@ -36,7 +36,7 @@
 #define PARAM_DEFAULT_LEFT_KI                       0.0
 #define PARAM_DEFAULT_RIGHT_KI                      0.0
 #define PARAM_DEFAULT_LEFT_KD                       0.5
-#define PARAM_DEFAULT_RIGHT_KD                      -0.42
+#define PARAM_DEFAULT_RIGHT_KD                      -0.5
 #define PARAM_DEFAULT_WHEEL_RADIUS                  0.05
 #define PARAM_DEFAULT_ROBOT_BASE                    0.215
 #define PARAM_DEFAULT_TICKS_PER_REV                 360
