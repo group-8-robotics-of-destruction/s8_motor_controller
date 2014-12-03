@@ -124,29 +124,38 @@ public:
 
         double left_w;
         double right_w;
-        calculate_wheel_velocities(v, w, left_w, right_w);
+        ROS_INFO("linear speed: %lf, angular speed: %lf", v,w);
+        if ((v < 0.001 && v >  -0.001) && (w < 0.001 && w > -0.001)){
+            publish_pwm(0, 0);
+            ROS_INFO("in stop mode");
+        }
+        else
+        {
+            calculate_wheel_velocities(v, w, left_w, right_w);
 
-        double est_left_w = estimate_w(wheel_left.delta_encoder);
-        double est_right_w = estimate_w(wheel_right.delta_encoder);
+            double est_left_w = estimate_w(wheel_left.delta_encoder);
+            double est_right_w = estimate_w(wheel_right.delta_encoder);
 
-        wheel_left.pid_controller.update(wheel_left.pwm, left_w - est_left_w);
-        wheel_right.pid_controller.update(wheel_right.pwm, right_w - est_right_w);
+            wheel_left.pid_controller.update(wheel_left.pwm, left_w - est_left_w);
+            wheel_right.pid_controller.update(wheel_right.pwm, right_w - est_right_w);
 
-        check_pwm(wheel_left.pwm, wheel_right.pwm);
-        publish_pwm(wheel_left.pwm, wheel_right.pwm);
+            check_pwm(wheel_left.pwm, wheel_right.pwm);
+            publish_pwm(wheel_left.pwm, wheel_right.pwm);
 
-        auto get_actual_v = [&est_right_w, &est_left_w, this]() {
-            return ((est_right_w + est_left_w) / 2) * params.wheel_radius;
-        };
+            auto get_actual_v = [&est_right_w, &est_left_w, this]() {
+                return ((est_right_w + est_left_w) / 2) * params.wheel_radius;
+            };
 
-        auto get_actual_w = [&est_right_w, &est_left_w, this]() {
-            return ((est_right_w - est_left_w) / params.robot_base) * params.wheel_radius;
-        };
+            auto get_actual_w = [&est_right_w, &est_left_w, this]() {
+                return ((est_right_w - est_left_w) / params.robot_base) * params.wheel_radius;
+            };
 
-        publish_actual_twist(get_actual_v(), get_actual_w());
+            publish_actual_twist(get_actual_v(), get_actual_w());
+            }
 
         updates_since_last_twist++;
-    }
+        }
+        
 
 private:
     void stop() {
@@ -154,6 +163,7 @@ private:
         w = 0.0;
         wheel_left.reset();
         wheel_right.reset();
+        //publish_pwm(0,0);
         idle = true;
     }
 
