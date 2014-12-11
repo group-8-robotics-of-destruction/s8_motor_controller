@@ -99,9 +99,11 @@ private:
     int encoder_still_treshold;
     bool is_still;
     int ticks_since_last_encoder_callback;
+    int ignored_twist_cnt;
+    bool ignore_twist;
 
 public:
-    MotorController(int hz) : Node(), hz(hz), wheel_left(hz), wheel_right(hz), v(0), w(0), updates_since_last_twist(0), idle(false), is_still(false), stop_action(nh, ACTION_STOP, boost::bind(&MotorController::action_execute_stop_callback, this, _1), false), is_stopping(false) {
+    MotorController(int hz) : ignore_twist(false), ignored_twist_cnt(0), Node(), hz(hz), wheel_left(hz), wheel_right(hz), v(0), w(0), updates_since_last_twist(0), idle(false), is_still(false), stop_action(nh, ACTION_STOP, boost::bind(&MotorController::action_execute_stop_callback, this, _1), false), is_stopping(false) {
         init_params();
         print_params();
         pwm_publisher = nh.advertise<ras_arduino_msgs::PWM>(TOPIC_PWM, BUFFER_SIZE);
@@ -124,10 +126,10 @@ public:
 
         double left_w;
         double right_w;
-        ROS_INFO("linear speed: %lf, angular speed: %lf", v,w);
+        // ROS_INFO("linear speed: %lf, angular speed: %lf", v,w);
         if ((v < 0.001 && v >  -0.001) && (w < 0.001 && w > -0.001)){
             publish_pwm(0, 0);
-            ROS_INFO("in stop mode");
+            ROS_INFO("publishing zero");
         }
         else
         {
@@ -210,9 +212,22 @@ private:
         }
 
         is_stopping = false;
+        ignore_twist = true;
+        ignored_twist_cnt = 0;
     }
 
     void twist_callback(const geometry_msgs::Twist::ConstPtr & twist) {
+        if(ignore_twist) {
+            ignored_twist_cnt++;
+
+            if(ignored_twist_cnt > 10) {
+                ignored_twist_cnt = 0;
+                ignore_twist = false;
+            } else {
+                return;
+            }
+        }
+        
         if(is_stopping) {
             ROS_WARN("Twist recieved while stopping! Ignoring twist until stopped.");
             return;
@@ -223,6 +238,8 @@ private:
         updates_since_last_twist = 0;
         idle = false;
         is_still = false;
+
+        ROS_INFO("Incoming twist: v: %lf, w: %lf", v, w);
     }
 
     void encoders_callback(const ras_arduino_msgs::Encoders::ConstPtr & encoders) {
@@ -295,7 +312,7 @@ private:
 
         pwm_publisher.publish(pwm_message);
 
-        ROS_INFO("left: %d right: %d", left, right);
+        // ROS_INFO("left: %d right: %d", left, right);
     }
 
     void publish_actual_twist(double v, double w) {
